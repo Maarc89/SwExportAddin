@@ -1,0 +1,31 @@
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Build outputs
+**/bin/
+**/obj/
+
+# NuGet
+packages/
+*.nupkg
+*.snupkg
+
+# Logs
+*.log
+
+# Test results
+TestResults/
+
+# Inno Setup output
+Output/
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Optional: keep local publish/install artifacts out
+*.pdb
