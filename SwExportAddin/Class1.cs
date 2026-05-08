@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using System.Reflection;
 using System.Runtime.InteropServices;
 using Microsoft.Win32;
 using SolidWorks.Interop.sldworks;
@@ -95,7 +94,6 @@ namespace SwExportAddin
         {
             int errors = 0;
 
-            // No recrear el grupo en cada conexión: evita toolbars duplicadas y botones huérfanos
             cmdGroup = cmdMgr.CreateCommandGroup2(
                 CommandGroupId,
                 CommandGroupTitle,
@@ -112,10 +110,10 @@ namespace SwExportAddin
             }
 
             cmdGroup.AddCommandItem2(
-                "Export Batch",
+                "Exportar Plano",
                 -1,
                 "Exporta el drawing activo a PDF y DWG",
-                "ExportBatch",
+                "Exportar Plano",
                 0,
                 nameof(RunBatchExport),
                 "",
@@ -124,10 +122,10 @@ namespace SwExportAddin
             );
 
             cmdGroup.AddCommandItem2(
-                "Export Folder",
+                "Exportar Carpeta Completa",
                 -1,
                 "Exporta todos los drawings (.slddrw) de la carpeta del drawing activo a PDF y DWG",
-                "ExportFolder",
+                "Exportar Carpeta Completa",
                 0,
                 nameof(RunExportFolder),
                 "",
@@ -136,10 +134,10 @@ namespace SwExportAddin
             );
 
             cmdGroup.AddCommandItem2(
-                "Export Select",
+                "Exportar Seleccionables",
                 -1,
                 "Selecciona ficheros .slddrw para exportar a PDF y DWG",
-                "ExportSelect",
+                "Exportar Seleccionables",
                 0,
                 nameof(RunExportSelect),
                 "",
@@ -158,11 +156,13 @@ namespace SwExportAddin
             {
                 Log("AddDrawingCommandTab starting...");
 
-                // Eliminar TODAS las pestañas existentes con este título (pueden quedar duplicadas en caché)
                 while (true)
                 {
                     var existingTab = cmdMgr.GetCommandTab((int)swDocumentTypes_e.swDocDRAWING, CommandGroupTitle);
-                    if (existingTab == null) break;
+                    if (existingTab == null)
+                    {
+                        break;
+                    }
 
                     try
                     {
@@ -197,7 +197,8 @@ namespace SwExportAddin
                 Log($"Command IDs: {cmdID0}, {cmdID1}, {cmdID2}");
 
                 int[] cmdIDs = { cmdID0, cmdID1, cmdID2 };
-                int[] textTypes = {
+                int[] textTypes =
+                {
                     (int)swCommandTabButtonTextDisplay_e.swCommandTabButton_TextBelow,
                     (int)swCommandTabButtonTextDisplay_e.swCommandTabButton_TextBelow,
                     (int)swCommandTabButtonTextDisplay_e.swCommandTabButton_TextBelow
@@ -209,6 +210,107 @@ namespace SwExportAddin
             catch (Exception ex)
             {
                 Log($"AddDrawingCommandTab exception: {ex}");
+            }
+        }
+
+        private bool AskExportFormats(string title, out bool exportPdf, out bool exportDwg)
+        {
+            using (var dlg = new ExportOptionsDialog(title))
+            {
+                if (dlg.ShowDialog() != System.Windows.Forms.DialogResult.OK)
+                {
+                    exportPdf = false;
+                    exportDwg = false;
+                    return false;
+                }
+
+                exportPdf = dlg.ExportPdf;
+                exportDwg = dlg.ExportDwg;
+
+                if (!exportPdf && !exportDwg)
+                {
+                    System.Windows.Forms.MessageBox.Show("Selecciona al menos PDF o DWG.");
+                    return false;
+                }
+
+                return true;
+            }
+        }
+
+        private sealed class ExportOptionsDialog : System.Windows.Forms.Form
+        {
+            private readonly System.Windows.Forms.CheckBox chkPdf;
+            private readonly System.Windows.Forms.CheckBox chkDwg;
+
+            public bool ExportPdf => chkPdf.Checked;
+            public bool ExportDwg => chkDwg.Checked;
+
+            public ExportOptionsDialog(string title)
+            {
+                Text = title;
+                FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedDialog;
+                StartPosition = System.Windows.Forms.FormStartPosition.CenterParent;
+                MinimizeBox = false;
+                MaximizeBox = false;
+                ShowInTaskbar = false;
+                Width = 380;
+                Height = 260;
+                AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+
+                var lbl = new System.Windows.Forms.Label
+                {
+                    Text = "¿Qué quieres exportar?",
+                    AutoSize = true,
+                    Left = 20,
+                    Top = 20
+                };
+
+                chkPdf = new System.Windows.Forms.CheckBox
+                {
+                    Text = "PDF",
+                    Checked = true,
+                    AutoSize = true,
+                    Left = 25,
+                    Top = 60
+                };
+
+                chkDwg = new System.Windows.Forms.CheckBox
+                {
+                    Text = "DWG",
+                    Checked = true,
+                    AutoSize = true,
+                    Left = 25,
+                    Top = 100
+                };
+
+                var btnOk = new System.Windows.Forms.Button
+                {
+                    Text = "Aceptar",
+                    DialogResult = System.Windows.Forms.DialogResult.OK,
+                    Left = 80,
+                    Top = 150,
+                    Width = 100,
+                    Height = 35
+                };
+
+                var btnCancel = new System.Windows.Forms.Button
+                {
+                    Text = "Cancelar",
+                    DialogResult = System.Windows.Forms.DialogResult.Cancel,
+                    Left = 200,
+                    Top = 150,
+                    Width = 100,
+                    Height = 35
+                };
+
+                AcceptButton = btnOk;
+                CancelButton = btnCancel;
+
+                Controls.Add(lbl);
+                Controls.Add(chkPdf);
+                Controls.Add(chkDwg);
+                Controls.Add(btnOk);
+                Controls.Add(btnCancel);
             }
         }
 
@@ -224,6 +326,11 @@ namespace SwExportAddin
             if (model.GetType() != (int)swDocumentTypes_e.swDocDRAWING)
             {
                 System.Windows.Forms.MessageBox.Show("El documento activo no es un drawing.");
+                return;
+            }
+
+            if (!AskExportFormats("Exportar Plano", out bool exportPdf, out bool exportDwg))
+            {
                 return;
             }
 
@@ -247,20 +354,40 @@ namespace SwExportAddin
             Directory.CreateDirectory(dwgFolder);
 
             string fileName = Path.GetFileNameWithoutExtension(sourcePath);
-            string pdf = Path.Combine(pdfFolder, fileName + ".pdf");
-            string dwg = Path.Combine(dwgFolder, fileName + ".dwg");
-
             int errors = 0;
             int warnings = 0;
+            bool pdfOk = true;
+            bool dwgOk = true;
 
-            bool pdfOk = model.Extension.SaveAs(pdf, 0, 0, null, ref errors, ref warnings);
-            bool dwgOk = model.Extension.SaveAs(dwg, 0, 0, null, ref errors, ref warnings);
+            if (exportPdf)
+            {
+                string pdf = Path.Combine(pdfFolder, fileName + ".pdf");
+                pdfOk = model.Extension.SaveAs(pdf, 0, 0, null, ref errors, ref warnings);
+            }
 
-            System.Windows.Forms.MessageBox.Show(
-                pdfOk && dwgOk
-                    ? $"Exportación completada en:\n{pdfFolder}\n{dwgFolder}"
-                    : $"La exportación falló. Errores: {errors}, Avisos: {warnings}"
-            );
+            if (exportDwg)
+            {
+                string dwg = Path.Combine(dwgFolder, fileName + ".dwg");
+                dwgOk = model.Extension.SaveAs(dwg, 0, 0, null, ref errors, ref warnings);
+            }
+
+            if (!pdfOk || !dwgOk)
+            {
+                System.Windows.Forms.MessageBox.Show($"La exportación falló. Errores: {errors}, Avisos: {warnings}");
+                return;
+            }
+
+            var message = "Exportación completada en:\n";
+            if (exportPdf)
+            {
+                message += $"{pdfFolder}\n";
+            }
+            if (exportDwg)
+            {
+                message += $"{dwgFolder}\n";
+            }
+
+            System.Windows.Forms.MessageBox.Show(message.TrimEnd());
         }
 
         public void RunExportFolder()
@@ -269,6 +396,11 @@ namespace SwExportAddin
             if (model == null)
             {
                 System.Windows.Forms.MessageBox.Show("No hay ningún documento activo.");
+                return;
+            }
+
+            if (!AskExportFormats("Exportar Carpeta Completa", out bool exportPdf, out bool exportDwg))
+            {
                 return;
             }
 
@@ -298,14 +430,19 @@ namespace SwExportAddin
 
             foreach (var f in files)
             {
-                if (ExportDrawing(f)) success++; else failed++;
+                if (ExportDrawing(f, exportPdf, exportDwg)) success++; else failed++;
             }
 
-            System.Windows.Forms.MessageBox.Show($"Exportación completada. Éxitos: {success}, Fallos: {failed}");
+            System.Windows.Forms.MessageBox.Show($"Exportación completada. Completados: {success}, Fallidos: {failed}");
         }
 
         public void RunExportSelect()
         {
+            if (!AskExportFormats("Exportar Seleccionables", out bool exportPdf, out bool exportDwg))
+            {
+                return;
+            }
+
             var model = swApp.IActiveDoc2;
             string initialDir = null;
             if (model != null)
@@ -326,17 +463,18 @@ namespace SwExportAddin
                 var dr = dlg.ShowDialog();
                 if (dr != System.Windows.Forms.DialogResult.OK) return;
 
-                int success = 0; int failed = 0;
+                int success = 0;
+                int failed = 0;
                 foreach (var f in dlg.FileNames)
                 {
-                    if (ExportDrawing(f)) success++; else failed++;
+                    if (ExportDrawing(f, exportPdf, exportDwg)) success++; else failed++;
                 }
 
-                System.Windows.Forms.MessageBox.Show($"Exportación completada. Éxitos: {success}, Fallos: {failed}");
+                System.Windows.Forms.MessageBox.Show($"Exportación completada. Completados: {success}, Fallidos: {failed}");
             }
         }
 
-        private bool ExportDrawing(string path)
+        private bool ExportDrawing(string path, bool exportPdf, bool exportDwg)
         {
             int errors = 0;
             int warnings = 0;
@@ -370,17 +508,28 @@ namespace SwExportAddin
             Directory.CreateDirectory(dwgFolder);
 
             string name = Path.GetFileNameWithoutExtension(path);
-            string pdf = Path.Combine(pdfFolder, name + ".pdf");
-            string dwg = Path.Combine(dwgFolder, name + ".dwg");
+            bool pdfOk = true;
+            bool dwgOk = true;
 
-            bool pdfOk = model.Extension.SaveAs(pdf, 0, 0, null, ref errors, ref warnings);
-            bool dwgOk = model.Extension.SaveAs(dwg, 0, 0, null, ref errors, ref warnings);
+            if (exportPdf)
+            {
+                string pdf = Path.Combine(pdfFolder, name + ".pdf");
+                pdfOk = model.Extension.SaveAs(pdf, 0, 0, null, ref errors, ref warnings);
+            }
+
+            if (exportDwg)
+            {
+                string dwg = Path.Combine(dwgFolder, name + ".dwg");
+                dwgOk = model.Extension.SaveAs(dwg, 0, 0, null, ref errors, ref warnings);
+            }
 
             try
             {
                 swApp.CloseDoc(model.GetTitle());
             }
-            catch { }
+            catch
+            {
+            }
 
             return pdfOk && dwgOk;
         }
