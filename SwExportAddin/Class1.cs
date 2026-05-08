@@ -90,15 +90,42 @@ namespace SwExportAddin
             }
         }
 
+        private string GetIconPath()
+        {
+            try
+            {
+                string assemblyPath = System.Reflection.Assembly.GetExecutingAssembly().Location;
+                string assemblyFolder = Path.GetDirectoryName(assemblyPath);
+                string iconPath = Path.Combine(assemblyFolder, "Icons", "icon.bmp");
+                
+                if (File.Exists(iconPath))
+                {
+                    Log("Icon found at: " + iconPath);
+                    return iconPath;
+                }
+                else
+                {
+                    Log("Icon not found at: " + iconPath);
+                    return "";
+                }
+            }
+            catch (Exception ex)
+            {
+                Log("GetIconPath error: " + ex.Message);
+                return "";
+            }
+        }
+
         private void AddCommand()
         {
             int errors = 0;
+            string iconPath = GetIconPath();
 
             cmdGroup = cmdMgr.CreateCommandGroup2(
                 CommandGroupId,
                 CommandGroupTitle,
                 "Export PDF/DWG",
-                "",
+                iconPath,
                 -1,
                 false,
                 ref errors
