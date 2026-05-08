@@ -38,43 +38,6 @@ Los ficheros se guardan en subcarpetas:
 - **Export Batch** y **Export Folder** requieren drawing activo con ruta disponible.
 - **Export Select** permite elegir archivos sin depender del documento activo.
 
-## Logs
-
-Ruta del log:
-
-`%LOCALAPPDATA%\SwExportAddin\SwExportAddin.log`
-
-## Desarrollo
-
-### Compilar
-
-- Configuración recomendada: **Release | x64**
-- Target framework: **.NET Framework 4.8**
-
-### Generar instalador
-
-1. Abre `SwExportAddin.iss` en Inno Setup.
-2. Compila el script.
-3. El instalador se genera en `Output\SwExportAddin_Setup.exe`.
-
-## Qué subir a GitHub
-
-### Sí subir
-- Código fuente (`.cs`)
-- Proyecto/solución (`.csproj`, `.sln`)
-- `SwExportAddin.iss`
-- `README.md`
-- `.gitignore`
-
-### No subir
-- `bin/`
-- `obj/`
-- `.vs/`
-- `Output/`
-- logs y artefactos locales
-
-> En particular: **no subas carpetas `Debug` ni `Release`** (están dentro de `bin/`).
-
 ## Licencia
 
 Pendiente de definir (por ejemplo MIT).
