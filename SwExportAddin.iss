@@ -11,7 +11,7 @@ AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher={#AppPublisher}
 AppPublisherURL={#AppURL}
-DefaultDirName={pf64}\SwExportAddin
+DefaultDirName={commonpf64}\SwExportAddin
 DefaultGroupName=SwExportAddin
 OutputDir=Output
 OutputBaseFilename=SwExportAddin_Setup
@@ -19,8 +19,9 @@ Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
 PrivilegesRequired=admin
+UsedUserAreasWarning=no
 ArchitecturesAllowed=x64compatible
-ArchitecturesInstallIn64BitMode=x64
+ArchitecturesInstallIn64BitMode=x64compatible
 DisableProgramGroupPage=yes
 UninstallDisplayIcon={app}\SwExportAddin.dll
 CloseApplications=yes
@@ -49,7 +50,7 @@ Root: HKCU; Subkey: "Software\SolidWorks\AddInsStartup\{{{#AddinGuid}}}"; ValueT
 [Code]
 function InitializeSetup: Boolean;
 begin
-  Result := IsAdminLoggedOn;
+  Result := IsAdmin;
   if not Result then
     MsgBox('Este instalador requiere permisos de administrador.', mbError, MB_OK);
 end;
