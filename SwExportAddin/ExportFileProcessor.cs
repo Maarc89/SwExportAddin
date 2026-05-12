@@ -62,87 +62,105 @@ namespace SwExportAddin
                 return false;
             }
 
-            string folder = Path.GetDirectoryName(path);
-            string pdfFolder = Path.Combine(folder, "PDF");
-            string dwgFolder = Path.Combine(folder, "DWG");
-            Directory.CreateDirectory(pdfFolder);
-            Directory.CreateDirectory(dwgFolder);
-
-            string name = Path.GetFileNameWithoutExtension(path);
-            bool hasDrawingTwin = File.Exists(Path.Combine(folder, name + ".slddrw"));
-            bool hasPartTwin = File.Exists(Path.Combine(folder, name + ".sldprt"));
-            string outputName = (hasDrawingTwin && hasPartTwin)
-                ? (name + (ext == ".slddrw" ? "_DRW" : "_PRT"))
-                : name;
-
-            bool pdfOk = true;
-            bool dwgOk = true;
-            string dwgFailureReason = null;
-
-            if (exportPdf)
-            {
-                string pdf = Path.Combine(pdfFolder, outputName + ".pdf");
-                pdfOk = model.Extension.SaveAs(pdf, (int)swSaveAsVersion_e.swSaveAsCurrentVersion, (int)swSaveAsOptions_e.swSaveAsOptions_Silent, null, ref errors, ref warnings);
-                if (!pdfOk)
-                {
-                    logger.Log($"ExportSolidWorksFile: PDF export failed for {path}. Errors={errors}, Warnings={warnings}");
-                }
-            }
-
-            if (exportDwg)
-            {
-                string dwg = Path.Combine(dwgFolder, outputName + ".dwg");
-                if (ext == ".sldprt")
-                {
-                    dwgOk = ExportPartToDwg(model, path, dwg, out dwgFailureReason);
-                    if (!dwgOk)
-                    {
-                        logger.Log($"ExportSolidWorksFile: DWG export failed for part {path}. {dwgFailureReason}");
-                    }
-                }
-                else
-                {
-                    dwgOk = model.Extension.SaveAs(dwg, (int)swSaveAsVersion_e.swSaveAsCurrentVersion, (int)swSaveAsOptions_e.swSaveAsOptions_Silent, null, ref errors, ref warnings);
-                    if (!dwgOk)
-                    {
-                        logger.Log($"ExportSolidWorksFile: DWG export failed for {path}. Errors={errors}, Warnings={warnings}");
-                    }
-                }
-            }
-
+            string docTitle = null;
             try
             {
-                swApp.CloseDoc(model.GetTitle());
-            }
-            catch
-            {
-            }
+                docTitle = model.GetTitle();
 
-            if (!pdfOk || !dwgOk)
-            {
-                if (!pdfOk && !dwgOk)
+                string folder = Path.GetDirectoryName(path);
+                string pdfFolder = Path.Combine(folder, "PDF");
+                string dwgFolder = Path.Combine(folder, "DWG");
+
+                string name = Path.GetFileNameWithoutExtension(path);
+                bool hasDrawingTwin = File.Exists(Path.Combine(folder, name + ".slddrw"));
+                bool hasPartTwin = File.Exists(Path.Combine(folder, name + ".sldprt"));
+                string outputName = (hasDrawingTwin && hasPartTwin)
+                    ? (name + (ext == ".slddrw" ? "_DRW" : "_PRT"))
+                    : name;
+
+                bool pdfOk = true;
+                bool dwgOk = true;
+                string dwgFailureReason = null;
+
+                if (exportPdf)
                 {
-                    failureReason = $"falló PDF y DWG (Errors={errors}, Warnings={warnings})";
-                    if (!string.IsNullOrWhiteSpace(dwgFailureReason))
+                    Directory.CreateDirectory(pdfFolder);
+                    string pdf = Path.Combine(pdfFolder, outputName + ".pdf");
+                    pdfOk = model.Extension.SaveAs(pdf, (int)swSaveAsVersion_e.swSaveAsCurrentVersion, (int)swSaveAsOptions_e.swSaveAsOptions_Silent, null, ref errors, ref warnings);
+                    if (!pdfOk)
                     {
-                        failureReason += $". {dwgFailureReason}";
+                        logger.Log($"ExportSolidWorksFile: PDF export failed for {path}. Errors={errors}, Warnings={warnings}");
                     }
                 }
-                else if (!pdfOk)
+
+                if (exportDwg)
                 {
-                    failureReason = $"falló PDF (Errors={errors}, Warnings={warnings})";
-                }
-                else
-                {
-                    failureReason = !string.IsNullOrWhiteSpace(dwgFailureReason)
-                        ? dwgFailureReason
-                        : $"falló DWG (Errors={errors}, Warnings={warnings})";
+                    Directory.CreateDirectory(dwgFolder);
+                    string dwg = Path.Combine(dwgFolder, outputName + ".dwg");
+                    if (ext == ".sldprt")
+                    {
+                        dwgOk = ExportPartToDwg(model, path, dwg, out dwgFailureReason);
+                        if (!dwgOk)
+                        {
+                            logger.Log($"ExportSolidWorksFile: DWG export failed for part {path}. {dwgFailureReason}");
+                        }
+                    }
+                    else
+                    {
+                        dwgOk = model.Extension.SaveAs(dwg, (int)swSaveAsVersion_e.swSaveAsCurrentVersion, (int)swSaveAsOptions_e.swSaveAsOptions_Silent, null, ref errors, ref warnings);
+                        if (!dwgOk)
+                        {
+                            logger.Log($"ExportSolidWorksFile: DWG export failed for {path}. Errors={errors}, Warnings={warnings}");
+                        }
+                    }
                 }
 
+                if (!pdfOk || !dwgOk)
+                {
+                    if (!pdfOk && !dwgOk)
+                    {
+                        failureReason = $"falló PDF y DWG (Errors={errors}, Warnings={warnings})";
+                        if (!string.IsNullOrWhiteSpace(dwgFailureReason))
+                        {
+                            failureReason += $". {dwgFailureReason}";
+                        }
+                    }
+                    else if (!pdfOk)
+                    {
+                        failureReason = $"falló PDF (Errors={errors}, Warnings={warnings})";
+                    }
+                    else
+                    {
+                        failureReason = !string.IsNullOrWhiteSpace(dwgFailureReason)
+                            ? dwgFailureReason
+                            : $"falló DWG (Errors={errors}, Warnings={warnings})";
+                    }
+
+                    return false;
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                failureReason = "error inesperado en exportación: " + ex.Message;
+                logger.Log($"ExportSolidWorksFile exception for {path}: {ex}");
                 return false;
             }
-
-            return true;
+            finally
+            {
+                if (!string.IsNullOrWhiteSpace(docTitle))
+                {
+                    try
+                    {
+                        swApp.CloseDoc(docTitle);
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.Log($"ExportSolidWorksFile: CloseDoc failed for {path}. {ex.Message}");
+                    }
+                }
+            }
         }
 
         private bool ExportPartToDwg(IModelDoc2 model, string sourcePath, string outputPath, out string failureReason)

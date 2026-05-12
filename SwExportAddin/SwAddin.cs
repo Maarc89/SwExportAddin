@@ -38,7 +38,7 @@ namespace SwExportAddin
                 if (cmdMgr == null)
                 {
                     logger.Log("GetCommandManager returned null.");
-                    return true;
+                    return false;
                 }
 
                 try
@@ -49,6 +49,7 @@ namespace SwExportAddin
                 catch (Exception ex)
                 {
                     logger.Log("AddCommand failed: " + ex);
+                    return false;
                 }
 
                 try
@@ -59,6 +60,7 @@ namespace SwExportAddin
                 catch (Exception ex)
                 {
                     logger.Log("AddDrawingCommandTab failed: " + ex);
+                    return false;
                 }
 
                 return true;
@@ -66,7 +68,7 @@ namespace SwExportAddin
             catch (Exception ex)
             {
                 logger.Log("ConnectToSW failed: " + ex);
-                return true;
+                return false;
             }
         }
 
@@ -81,8 +83,9 @@ namespace SwExportAddin
                     cmdMgr.RemoveCommandGroup(CommandGroupId);
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                logger.Log("DisconnectFromSW RemoveCommandGroup failed: " + ex.Message);
             }
 
             cmdTab = null;
@@ -262,6 +265,7 @@ namespace SwExportAddin
             }
             catch (Exception ex)
             {
+                new Logger().Log("RegisterFunction failed: " + ex);
                 System.Diagnostics.Debug.WriteLine("RegisterFunction failed: " + ex.Message);
             }
         }
@@ -276,8 +280,9 @@ namespace SwExportAddin
                 {
                     hklm.DeleteSubKeyTree($@"SOFTWARE\SolidWorks\Addins\{{{t.GUID}}}");
                 }
-                catch
+                catch (Exception ex)
                 {
+                    new Logger().Log("UnregisterFunction HKLM cleanup failed: " + ex.Message);
                 }
 
                 RegistryKey hkcu = Registry.CurrentUser;
@@ -285,20 +290,23 @@ namespace SwExportAddin
                 {
                     hkcu.DeleteSubKeyTree($@"Software\SolidWorks\Addins\{{{t.GUID}}}");
                 }
-                catch
+                catch (Exception ex)
                 {
+                    new Logger().Log("UnregisterFunction HKCU Addins cleanup failed: " + ex.Message);
                 }
 
                 try
                 {
                     hkcu.DeleteSubKeyTree($@"Software\SolidWorks\AddInsStartup\{{{t.GUID}}}");
                 }
-                catch
+                catch (Exception ex)
                 {
+                    new Logger().Log("UnregisterFunction HKCU AddInsStartup cleanup failed: " + ex.Message);
                 }
             }
             catch (Exception ex)
             {
+                new Logger().Log("UnregisterFunction failed: " + ex);
                 System.Diagnostics.Debug.WriteLine("UnregisterFunction failed: " + ex.Message);
             }
         }
