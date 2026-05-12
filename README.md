@@ -35,9 +35,5 @@ Los ficheros se guardan en subcarpetas:
 
 ## Uso
 
-- **Export Batch** y **Export Folder** requieren drawing activo con ruta disponible.
-- **Export Select** permite elegir archivos sin depender del documento activo.
-
-## Licencia
-
-Pendiente de definir (por ejemplo MIT).
+- **Exportar Plano** y **Exportar Carpeta** requieren drawing activo con ruta disponible.
+- **Exportar Seleccionables** permite elegir archivos sin depender del documento activo.
