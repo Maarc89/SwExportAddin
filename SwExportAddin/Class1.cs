@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -138,7 +139,7 @@ namespace SwExportAddin
             cmdGroup.AddCommandItem2(
                 "Exportar Plano",
                 -1,
-                "Exporta el drawing activo a PDF y DWG",
+                "Exporta el documento activo (.slddrw/.sldprt) a PDF y DWG",
                 "Exportar Plano",
                 0,
                 nameof(RunBatchExport),
@@ -150,7 +151,7 @@ namespace SwExportAddin
             cmdGroup.AddCommandItem2(
                 "Exportar Carpeta Completa",
                 -1,
-                "Exporta todos los drawings (.slddrw) de la carpeta del drawing activo a PDF y DWG",
+                "Exporta los archivos .slddrw y .sldprt de la carpeta del documento activo a PDF y DWG",
                 "Exportar Carpeta Completa",
                 0,
                 nameof(RunExportFolder),
@@ -162,7 +163,7 @@ namespace SwExportAddin
             cmdGroup.AddCommandItem2(
                 "Exportar Seleccionables",
                 -1,
-                "Selecciona ficheros .slddrw para exportar a PDF y DWG",
+                "Selecciona ficheros .slddrw/.sldprt para exportar a PDF y DWG",
                 "Exportar Seleccionables",
                 0,
                 nameof(RunExportSelect),
@@ -284,18 +285,6 @@ namespace SwExportAddin
                 return;
             }
 
-            if (modelType == (int)swDocumentTypes_e.swDocPART && exportDwg)
-            {
-                if (!exportPdf)
-                {
-                    System.Windows.Forms.MessageBox.Show("La exportación DWG de .sldprt no está soportada con este método. Selecciona PDF.");
-                    return;
-                }
-
-                System.Windows.Forms.MessageBox.Show("Para archivos .sldprt se omitirá DWG y se exportará solo PDF.");
-                exportDwg = false;
-            }
-
             string sourcePath = model.GetPathName();
             if (string.IsNullOrWhiteSpace(sourcePath))
             {
@@ -320,6 +309,7 @@ namespace SwExportAddin
             int warnings = 0;
             bool pdfOk = true;
             bool dwgOk = true;
+            string dwgFailureReason = null;
 
             if (exportPdf)
             {
@@ -330,12 +320,27 @@ namespace SwExportAddin
             if (exportDwg)
             {
                 string dwg = Path.Combine(dwgFolder, fileName + ".dwg");
-                dwgOk = model.Extension.SaveAs(dwg, (int)swSaveAsVersion_e.swSaveAsCurrentVersion, (int)swSaveAsOptions_e.swSaveAsOptions_Silent, null, ref errors, ref warnings);
+                if (modelType == (int)swDocumentTypes_e.swDocPART)
+                {
+                    dwgOk = ExportPartToDwg(model, sourcePath, dwg, out dwgFailureReason);
+                }
+                else
+                {
+                    dwgOk = model.Extension.SaveAs(dwg, (int)swSaveAsVersion_e.swSaveAsCurrentVersion, (int)swSaveAsOptions_e.swSaveAsOptions_Silent, null, ref errors, ref warnings);
+                }
             }
 
             if (!pdfOk || !dwgOk)
             {
-                System.Windows.Forms.MessageBox.Show($"La exportación falló. Errores: {errors}, Avisos: {warnings}");
+                if (!string.IsNullOrWhiteSpace(dwgFailureReason))
+                {
+                    System.Windows.Forms.MessageBox.Show($"La exportación falló. {dwgFailureReason}");
+                }
+                else
+                {
+                    System.Windows.Forms.MessageBox.Show($"La exportación falló. Errores: {errors}, Avisos: {warnings}");
+                }
+
                 return;
             }
 
@@ -401,20 +406,30 @@ namespace SwExportAddin
                 return;
             }
 
-            if (exportDwg && files.Any(f => string.Equals(Path.GetExtension(f), ".sldprt", StringComparison.OrdinalIgnoreCase)))
-            {
-                System.Windows.Forms.MessageBox.Show("Aviso: para archivos .sldprt se omitirá DWG y se exportará solo PDF.");
-            }
-
             int success = 0;
             int failed = 0;
+            var failedDetails = new List<string>();
 
             foreach (var f in files)
             {
-                if (ExportSolidWorksFile(f, exportPdf, exportDwg)) success++; else failed++;
+                if (ExportSolidWorksFile(f, exportPdf, exportDwg, out string failureReason))
+                {
+                    success++;
+                }
+                else
+                {
+                    failed++;
+                    failedDetails.Add($"- {Path.GetFileName(f)}: {failureReason}");
+                }
             }
 
-            System.Windows.Forms.MessageBox.Show($"Exportación completada. Completados: {success}, Fallidos: {failed}");
+            var summary = $"Exportación completada. Completados: {success}, Fallidos: {failed}";
+            if (failedDetails.Count > 0)
+            {
+                summary += "\n\nDetalle de fallidos:\n" + string.Join("\n", failedDetails);
+            }
+
+            System.Windows.Forms.MessageBox.Show(summary);
         }
 
         public void RunExportSelect()
@@ -454,29 +469,46 @@ namespace SwExportAddin
                     return;
                 }
 
-                if (exportDwg && selectedFiles.Any(f => string.Equals(Path.GetExtension(f), ".sldprt", StringComparison.OrdinalIgnoreCase)))
-                {
-                    System.Windows.Forms.MessageBox.Show("Aviso: para archivos .sldprt se omitirá DWG y se exportará solo PDF.");
-                }
-
                 int success = 0;
                 int failed = 0;
+                var failedDetails = new List<string>();
                 foreach (var f in selectedFiles)
                 {
-                    if (ExportSolidWorksFile(f, exportPdf, exportDwg)) success++; else failed++;
+                    if (ExportSolidWorksFile(f, exportPdf, exportDwg, out string failureReason))
+                    {
+                        success++;
+                    }
+                    else
+                    {
+                        failed++;
+                        failedDetails.Add($"- {Path.GetFileName(f)}: {failureReason}");
+                    }
                 }
 
-                System.Windows.Forms.MessageBox.Show($"Exportación completada. Completados: {success}, Fallidos: {failed}");
+                var summary = $"Exportación completada. Completados: {success}, Fallidos: {failed}";
+                if (failedDetails.Count > 0)
+                {
+                    summary += "\n\nDetalle de fallidos:\n" + string.Join("\n", failedDetails);
+                }
+
+                System.Windows.Forms.MessageBox.Show(summary);
             }
         }
 
         private bool ExportSolidWorksFile(string path, bool exportPdf, bool exportDwg)
         {
+            return ExportSolidWorksFile(path, exportPdf, exportDwg, out _);
+        }
+
+        private bool ExportSolidWorksFile(string path, bool exportPdf, bool exportDwg, out string failureReason)
+        {
             int errors = 0;
             int warnings = 0;
+            failureReason = null;
 
             if (Path.GetFileName(path).StartsWith("~$", StringComparison.OrdinalIgnoreCase))
             {
+                failureReason = "archivo temporal (~$)";
                 Log($"ExportSolidWorksFile: Skipped temporary file {path}");
                 return false;
             }
@@ -493,21 +525,9 @@ namespace SwExportAddin
             }
             else
             {
+                failureReason = "extensión no soportada";
                 Log($"ExportSolidWorksFile: Unsupported extension {path}");
                 return false;
-            }
-
-            bool exportDwgForThisFile = exportDwg;
-            if (ext == ".sldprt" && exportDwg)
-            {
-                if (!exportPdf)
-                {
-                    Log($"ExportSolidWorksFile: DWG not supported for .sldprt with current method: {path}");
-                    return false;
-                }
-
-                exportDwgForThisFile = false;
-                Log($"ExportSolidWorksFile: DWG skipped for .sldprt, exporting PDF only: {path}");
             }
 
             var doc = swApp.OpenDoc6(
@@ -521,6 +541,7 @@ namespace SwExportAddin
 
             if (doc == null)
             {
+                failureReason = $"no se pudo abrir (Errors={errors}, Warnings={warnings})";
                 System.Diagnostics.Debug.WriteLine($"No se pudo abrir el archivo: {path}");
                 Log($"ExportSolidWorksFile: Failed to open {path}. Errors={errors}, Warnings={warnings}");
                 return false;
@@ -529,6 +550,7 @@ namespace SwExportAddin
             IModelDoc2 model = doc as IModelDoc2;
             if (model == null)
             {
+                failureReason = "no se pudo cargar como IModelDoc2";
                 System.Diagnostics.Debug.WriteLine($"No se pudo cargar el modelo: {path}");
                 Log($"ExportSolidWorksFile: Failed to cast to IModelDoc2: {path}");
                 return false;
@@ -549,6 +571,7 @@ namespace SwExportAddin
 
             bool pdfOk = true;
             bool dwgOk = true;
+            string dwgFailureReason = null;
 
             if (exportPdf)
             {
@@ -560,13 +583,24 @@ namespace SwExportAddin
                 }
             }
 
-            if (exportDwgForThisFile)
+            if (exportDwg)
             {
                 string dwg = Path.Combine(dwgFolder, outputName + ".dwg");
-                dwgOk = model.Extension.SaveAs(dwg, (int)swSaveAsVersion_e.swSaveAsCurrentVersion, (int)swSaveAsOptions_e.swSaveAsOptions_Silent, null, ref errors, ref warnings);
-                if (!dwgOk)
+                if (ext == ".sldprt")
                 {
-                    Log($"ExportSolidWorksFile: DWG export failed for {path}. Errors={errors}, Warnings={warnings}");
+                    dwgOk = ExportPartToDwg(model, path, dwg, out dwgFailureReason);
+                    if (!dwgOk)
+                    {
+                        Log($"ExportSolidWorksFile: DWG export failed for part {path}. {dwgFailureReason}");
+                    }
+                }
+                else
+                {
+                    dwgOk = model.Extension.SaveAs(dwg, (int)swSaveAsVersion_e.swSaveAsCurrentVersion, (int)swSaveAsOptions_e.swSaveAsOptions_Silent, null, ref errors, ref warnings);
+                    if (!dwgOk)
+                    {
+                        Log($"ExportSolidWorksFile: DWG export failed for {path}. Errors={errors}, Warnings={warnings}");
+                    }
                 }
             }
 
@@ -578,7 +612,74 @@ namespace SwExportAddin
             {
             }
 
-            return pdfOk && dwgOk;
+            if (!pdfOk || !dwgOk)
+            {
+                if (!pdfOk && !dwgOk)
+                {
+                    failureReason = $"falló PDF y DWG (Errors={errors}, Warnings={warnings})";
+                    if (!string.IsNullOrWhiteSpace(dwgFailureReason))
+                    {
+                        failureReason += $". {dwgFailureReason}";
+                    }
+                }
+                else if (!pdfOk)
+                {
+                    failureReason = $"falló PDF (Errors={errors}, Warnings={warnings})";
+                }
+                else
+                {
+                    failureReason = !string.IsNullOrWhiteSpace(dwgFailureReason)
+                        ? dwgFailureReason
+                        : $"falló DWG (Errors={errors}, Warnings={warnings})";
+                }
+
+                return false;
+            }
+
+            return true;
+        }
+
+        private bool ExportPartToDwg(IModelDoc2 model, string sourcePath, string outputPath, out string failureReason)
+        {
+            failureReason = null;
+
+            var part = model as IPartDoc;
+            if (part == null)
+            {
+                failureReason = "no se pudo convertir a IPartDoc para exportar DWG";
+                return false;
+            }
+
+            try
+            {
+                object alignment = null;
+                object views = null;
+
+                bool ok = part.ExportToDWG2(
+                    outputPath,
+                    sourcePath,
+                    (int)swExportToDWG_e.swExportToDWG_ExportSheetMetal,
+                    true,
+                    alignment,
+                    false,
+                    false,
+                    1,
+                    views
+                );
+
+                if (!ok)
+                {
+                    failureReason = "DWG de pieza no disponible para este archivo (solo compatible en casos como chapa desplegada).";
+                }
+
+                return ok;
+            }
+            catch (Exception ex)
+            {
+                failureReason = "error en flujo DWG de pieza: " + ex.Message;
+                Log($"ExportPartToDwg exception for {sourcePath}: {ex}");
+                return false;
+            }
         }
 
         [ComRegisterFunction]
