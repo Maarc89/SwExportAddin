@@ -83,8 +83,11 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Class1.cs" />
-    <Compile Include="EmbeddedIconManager.cs" />
+    <Compile Include="SwAddin.cs" />
+    <Compile Include="ExportService.cs" />
+    <Compile Include="ExportDialogService.cs" />
+    <Compile Include="Logger.cs" />
+    <Compile Include="IconManager.cs" />
     <Compile Include="ExportOptionsDialog.cs">
       <SubType>Form</SubType>
     </Compile>

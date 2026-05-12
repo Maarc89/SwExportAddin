@@ -3,7 +3,7 @@ using System.IO;
 
 namespace SwExportAddin
 {
-    internal static class EmbeddedIconManager
+    internal static class IconManager
     {
         private static readonly string IconDirectory = Path.Combine(Path.GetTempPath(), "SwExportAddin", "Icons");
 
@@ -19,7 +19,7 @@ namespace SwExportAddin
                     return outputFile;
                 }
 
-                var assembly = typeof(EmbeddedIconManager).Assembly;
+                var assembly = typeof(IconManager).Assembly;
                 string resourceName = null;
                 foreach (var name in assembly.GetManifestResourceNames())
                 {
