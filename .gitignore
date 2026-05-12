@@ -29,3 +29,7 @@ Thumbs.db
 
 # Optional: keep local publish/install artifacts out
 *.pdb
+
+# Local backups / accidental binaries
+*.bak
+SwExportAddin/Class1.dll
