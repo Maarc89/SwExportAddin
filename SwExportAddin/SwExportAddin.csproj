@@ -58,13 +58,18 @@
     <ErrorReport>prompt</ErrorReport>
     <RegisterForComInterop>true</RegisterForComInterop>
   </PropertyGroup>
+  <PropertyGroup>
+    <SolidWorksApiRedistPath Condition="'$(SolidWorksApiRedistPath)' == '' and '$(SOLIDWORKS_API_REDIST)' != ''">$(SOLIDWORKS_API_REDIST)</SolidWorksApiRedistPath>
+    <SolidWorksApiRedistPath Condition="'$(SolidWorksApiRedistPath)' == ''">$(ProgramFiles)\SOLIDWORKS Corp\SOLIDWORKS\api\redist</SolidWorksApiRedistPath>
+    <SolidWorksApiRedistPath Condition="'$(SolidWorksApiRedistPath)' == ''">$(ProgramW6432)\SOLIDWORKS Corp\SOLIDWORKS\api\redist</SolidWorksApiRedistPath>
+  </PropertyGroup>
   <ItemGroup>
     <Reference Include="SolidWorks.Interop.sldworks">
-      <HintPath>C:\Program Files\SOLIDWORKS Corp\SOLIDWORKS\api\redist\SolidWorks.Interop.sldworks.dll</HintPath>
+      <HintPath>$(SolidWorksApiRedistPath)\SolidWorks.Interop.sldworks.dll</HintPath>
       <EmbedInteropTypes>True</EmbedInteropTypes>
     </Reference>
     <Reference Include="SolidWorks.Interop.swconst">
-      <HintPath>C:\Program Files\SOLIDWORKS Corp\SOLIDWORKS\api\redist\SolidWorks.Interop.swconst.dll</HintPath>
+      <HintPath>$(SolidWorksApiRedistPath)\SolidWorks.Interop.swconst.dll</HintPath>
       <EmbedInteropTypes>True</EmbedInteropTypes>
     </Reference>
     <Reference Include="System" />
@@ -78,7 +83,7 @@
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Drawing" />
     <Reference Include="SolidWorks.Interop.swpublished">
-      <HintPath>C:\Program Files\SOLIDWORKS Corp\SOLIDWORKS\api\redist\SolidWorks.Interop.swpublished.dll</HintPath>
+      <HintPath>$(SolidWorksApiRedistPath)\SolidWorks.Interop.swpublished.dll</HintPath>
       <EmbedInteropTypes>True</EmbedInteropTypes>
     </Reference>
   </ItemGroup>
