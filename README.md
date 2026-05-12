@@ -13,7 +13,7 @@ Añade una pestaña **Export Tools** con 3 comandos:
 3. **Export Select**
    - Permite seleccionar uno o varios `.slddrw` para exportar.
 
-Los ficheros se guardan en subcarpetas:
+Los ficheros se guardan en subcarpetas en el mismo directorio que el/los drawing:
 - `PDF`
 - `DWG`
 
