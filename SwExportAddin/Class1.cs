@@ -69,6 +69,16 @@ namespace SwExportAddin
         public bool DisconnectFromSW()
         {
             Log("DisconnectFromSW called.");
+            
+            try
+            {
+                if (cmdGroup != null)
+                {
+                    cmdMgr.RemoveCommandGroup(CommandGroupId);
+                }
+            }
+            catch { }
+
             cmdTab = null;
             cmdGroup = null;
             cmdMgr = null;
@@ -90,42 +100,15 @@ namespace SwExportAddin
             }
         }
 
-        private string GetIconPath()
-        {
-            try
-            {
-                string assemblyPath = System.Reflection.Assembly.GetExecutingAssembly().Location;
-                string assemblyFolder = Path.GetDirectoryName(assemblyPath);
-                string iconPath = Path.Combine(assemblyFolder, "Icons", "icon.bmp");
-                
-                if (File.Exists(iconPath))
-                {
-                    Log("Icon found at: " + iconPath);
-                    return iconPath;
-                }
-                else
-                {
-                    Log("Icon not found at: " + iconPath);
-                    return "";
-                }
-            }
-            catch (Exception ex)
-            {
-                Log("GetIconPath error: " + ex.Message);
-                return "";
-            }
-        }
-
         private void AddCommand()
         {
             int errors = 0;
-            string iconPath = GetIconPath();
 
             cmdGroup = cmdMgr.CreateCommandGroup2(
                 CommandGroupId,
                 CommandGroupTitle,
                 "Export PDF/DWG",
-                iconPath,
+                "",
                 -1,
                 false,
                 ref errors
@@ -134,6 +117,21 @@ namespace SwExportAddin
             if (cmdGroup == null)
             {
                 throw new InvalidOperationException($"No se pudo crear el grupo de comandos. Errors={errors}");
+            }
+
+            string smallIcon = EmbeddedIconManager.GetIconFile("ExportPlano.png", 16);
+            string largeIcon = EmbeddedIconManager.GetIconFile("ExportPlano.png", 32);
+
+            if (!string.IsNullOrWhiteSpace(smallIcon))
+            {
+                cmdGroup.SmallIconList = smallIcon;
+                cmdGroup.SmallMainIcon = smallIcon;
+            }
+
+            if (!string.IsNullOrWhiteSpace(largeIcon))
+            {
+                cmdGroup.LargeIconList = largeIcon;
+                cmdGroup.LargeMainIcon = largeIcon;
             }
 
             cmdGroup.AddCommandItem2(
@@ -156,7 +154,7 @@ namespace SwExportAddin
                 0,
                 nameof(RunExportFolder),
                 "",
-                1,
+                0,
                 (int)(swCommandItemType_e.swMenuItem | swCommandItemType_e.swToolbarItem)
             );
 
@@ -168,7 +166,7 @@ namespace SwExportAddin
                 0,
                 nameof(RunExportSelect),
                 "",
-                2,
+                0,
                 (int)(swCommandItemType_e.swMenuItem | swCommandItemType_e.swToolbarItem)
             );
 
@@ -281,7 +279,7 @@ namespace SwExportAddin
                 MaximizeBox = false;
                 ShowInTaskbar = false;
                 Width = 380;
-                Height = 260;
+                Height = 240;
                 AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
 
                 var lbl = new System.Windows.Forms.Label
@@ -343,7 +341,7 @@ namespace SwExportAddin
 
         public void RunBatchExport()
         {
-            var model = swApp.IActiveDoc2;
+            IModelDoc2 model = swApp.IActiveDoc2 as IModelDoc2;
             if (model == null)
             {
                 System.Windows.Forms.MessageBox.Show("No hay ningún documento activo.");
@@ -389,13 +387,13 @@ namespace SwExportAddin
             if (exportPdf)
             {
                 string pdf = Path.Combine(pdfFolder, fileName + ".pdf");
-                pdfOk = model.Extension.SaveAs(pdf, 0, 0, null, ref errors, ref warnings);
+                pdfOk = model.Extension.SaveAs(pdf, (int)swSaveAsVersion_e.swSaveAsCurrentVersion, (int)swSaveAsOptions_e.swSaveAsOptions_Silent, null, ref errors, ref warnings);
             }
 
             if (exportDwg)
             {
                 string dwg = Path.Combine(dwgFolder, fileName + ".dwg");
-                dwgOk = model.Extension.SaveAs(dwg, 0, 0, null, ref errors, ref warnings);
+                dwgOk = model.Extension.SaveAs(dwg, (int)swSaveAsVersion_e.swSaveAsCurrentVersion, (int)swSaveAsOptions_e.swSaveAsOptions_Silent, null, ref errors, ref warnings);
             }
 
             if (!pdfOk || !dwgOk)
@@ -419,10 +417,16 @@ namespace SwExportAddin
 
         public void RunExportFolder()
         {
-            var model = swApp.IActiveDoc2;
+            IModelDoc2 model = swApp.IActiveDoc2 as IModelDoc2;
             if (model == null)
             {
                 System.Windows.Forms.MessageBox.Show("No hay ningún documento activo.");
+                return;
+            }
+
+            if (model.GetType() != (int)swDocumentTypes_e.swDocDRAWING)
+            {
+                System.Windows.Forms.MessageBox.Show("El documento activo no es un drawing.");
                 return;
             }
 
@@ -470,7 +474,7 @@ namespace SwExportAddin
                 return;
             }
 
-            var model = swApp.IActiveDoc2;
+            IModelDoc2 model = swApp.IActiveDoc2 as IModelDoc2;
             string initialDir = null;
             if (model != null)
             {
@@ -518,13 +522,15 @@ namespace SwExportAddin
             if (doc == null)
             {
                 System.Diagnostics.Debug.WriteLine($"No se pudo abrir el drawing: {path}");
+                Log($"ExportDrawing: Failed to open {path}. Errors={errors}, Warnings={warnings}");
                 return false;
             }
 
-            var model = doc as IModelDoc2;
+            IModelDoc2 model = doc as IModelDoc2;
             if (model == null)
             {
                 System.Diagnostics.Debug.WriteLine($"No se pudo cargar el modelo del drawing: {path}");
+                Log($"ExportDrawing: Failed to cast to IModelDoc2: {path}");
                 return false;
             }
 
@@ -541,13 +547,21 @@ namespace SwExportAddin
             if (exportPdf)
             {
                 string pdf = Path.Combine(pdfFolder, name + ".pdf");
-                pdfOk = model.Extension.SaveAs(pdf, 0, 0, null, ref errors, ref warnings);
+                pdfOk = model.Extension.SaveAs(pdf, (int)swSaveAsVersion_e.swSaveAsCurrentVersion, (int)swSaveAsOptions_e.swSaveAsOptions_Silent, null, ref errors, ref warnings);
+                if (!pdfOk)
+                {
+                    Log($"ExportDrawing: PDF export failed for {path}. Errors={errors}, Warnings={warnings}");
+                }
             }
 
             if (exportDwg)
             {
                 string dwg = Path.Combine(dwgFolder, name + ".dwg");
-                dwgOk = model.Extension.SaveAs(dwg, 0, 0, null, ref errors, ref warnings);
+                dwgOk = model.Extension.SaveAs(dwg, (int)swSaveAsVersion_e.swSaveAsCurrentVersion, (int)swSaveAsOptions_e.swSaveAsOptions_Silent, null, ref errors, ref warnings);
+                if (!dwgOk)
+                {
+                    Log($"ExportDrawing: DWG export failed for {path}. Errors={errors}, Warnings={warnings}");
+                }
             }
 
             try
@@ -571,14 +585,22 @@ namespace SwExportAddin
                 addinKey.SetValue(null, 1, RegistryValueKind.DWord);
                 addinKey.SetValue("Description", "Export PDF/DWG Batch");
                 addinKey.SetValue("Title", "SwExportAddin");
+                addinKey.Close();
 
                 RegistryKey hkcu = Registry.CurrentUser;
-                RegistryKey hkcuAddin = hkcu.CreateSubKey($@"Software\SolidWorks\AddInsStartup\{{{t.GUID}}}");
+                RegistryKey hkcuAddin = hkcu.CreateSubKey($@"Software\SolidWorks\Addins\{{{t.GUID}}}");
                 hkcuAddin.SetValue(null, 1, RegistryValueKind.DWord);
+                hkcuAddin.SetValue("Description", "Export PDF/DWG Batch");
+                hkcuAddin.SetValue("Title", "SwExportAddin");
+                hkcuAddin.Close();
+
+                RegistryKey hkcuStartup = hkcu.CreateSubKey($@"Software\SolidWorks\AddInsStartup\{{{t.GUID}}}");
+                hkcuStartup.SetValue(null, 1, RegistryValueKind.DWord);
+                hkcuStartup.Close();
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine(ex.Message);
+                System.Diagnostics.Debug.WriteLine("RegisterFunction failed: " + ex.Message);
             }
         }
 
@@ -588,14 +610,89 @@ namespace SwExportAddin
             try
             {
                 RegistryKey hklm = Registry.LocalMachine;
-                hklm.DeleteSubKeyTree($@"SOFTWARE\SolidWorks\Addins\{{{t.GUID}}}");
+                try
+                {
+                    hklm.DeleteSubKeyTree($@"SOFTWARE\SolidWorks\Addins\{{{t.GUID}}}");
+                }
+                catch { }
 
                 RegistryKey hkcu = Registry.CurrentUser;
-                hkcu.DeleteSubKeyTree($@"Software\SolidWorks\AddInsStartup\{{{t.GUID}}}");
+                try
+                {
+                    hkcu.DeleteSubKeyTree($@"Software\SolidWorks\Addins\{{{t.GUID}}}");
+                }
+                catch { }
+
+                try
+                {
+                    hkcu.DeleteSubKeyTree($@"Software\SolidWorks\AddInsStartup\{{{t.GUID}}}");
+                }
+                catch { }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine(ex.Message);
+                System.Diagnostics.Debug.WriteLine("UnregisterFunction failed: " + ex.Message);
+            }
+        }
+    }
+
+    internal static class EmbeddedIconManager
+    {
+        private static readonly string IconDirectory = Path.Combine(Path.GetTempPath(), "SwExportAddin", "Icons");
+
+        public static string GetIconFile(string resourceFileName, int size)
+        {
+            try
+            {
+                Directory.CreateDirectory(IconDirectory);
+
+                string outputFile = Path.Combine(IconDirectory, Path.GetFileNameWithoutExtension(resourceFileName) + "_" + size + ".bmp");
+                if (File.Exists(outputFile))
+                {
+                    return outputFile;
+                }
+
+                var assembly = typeof(EmbeddedIconManager).Assembly;
+                string resourceName = null;
+                foreach (var name in assembly.GetManifestResourceNames())
+                {
+                    if (name.EndsWith(resourceFileName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        resourceName = name;
+                        break;
+                    }
+                }
+
+                if (resourceName == null)
+                {
+                    return null;
+                }
+
+                using (Stream stream = assembly.GetManifestResourceStream(resourceName))
+                {
+                    if (stream == null)
+                    {
+                        return null;
+                    }
+
+                    using (var source = new System.Drawing.Bitmap(stream))
+                    using (var target = new System.Drawing.Bitmap(size, size))
+                    using (var graphics = System.Drawing.Graphics.FromImage(target))
+                    {
+                        graphics.Clear(System.Drawing.Color.Transparent);
+                        graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                        graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+                        graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
+                        graphics.DrawImage(source, 0, 0, size, size);
+                        target.Save(outputFile, System.Drawing.Imaging.ImageFormat.Bmp);
+                    }
+                }
+
+                return outputFile;
+            }
+            catch
+            {
+                return null;
             }
         }
     }
