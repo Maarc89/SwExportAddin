@@ -1,19 +1,19 @@
 # SwExportAddin
 
-Add-in de SOLIDWORKS para exportar drawings (`.slddrw`) a **PDF** y **DWG**.
+Add-in de SOLIDWORKS para exportar archivos `.slddrw` y `.sldprt` a **PDF** y **DWG**.
 
 ## ¿Qué hace?
 
 Añade una pestaña **Export Tools** con 3 comandos:
 
-1. **Export Batch**
-   - Exporta el drawing activo a PDF y DWG.
-2. **Export Folder**
-   - Exporta todos los `.slddrw` de la carpeta del drawing activo.
-3. **Export Select**
-   - Permite seleccionar uno o varios `.slddrw` para exportar.
+1. **Exportar Plano**
+   - Exporta el documento activo (`.slddrw` o `.sldprt`) a PDF/DWG.
+2. **Exportar Carpeta Completa**
+   - Exporta los `.slddrw` y `.sldprt` de la carpeta del documento activo.
+3. **Exportar Seleccionables**
+   - Permite seleccionar uno o varios `.slddrw`/`.sldprt` para exportar.
 
-Los ficheros se guardan en subcarpetas en el mismo directorio que el/los drawing:
+Los ficheros se guardan en subcarpetas en el mismo directorio origen:
 - `PDF`
 - `DWG`
 
@@ -22,12 +22,12 @@ Los ficheros se guardan en subcarpetas en el mismo directorio que el/los drawing
 - **Windows x64**.
 - **SOLIDWORKS x64** (validado con **SOLIDWORKS 2025**).
 - **.NET Framework 4.8** (target del proyecto).
-- Visual Studio con soporte para proyectos **.NET Framework** (para compilar desde código fuente).
-- Permisos de administrador para el registro COM.
+- Visual Studio con soporte para proyectos **.NET Framework**.
+- Permisos de administrador para registro COM.
 
 ## Build desde código fuente (Visual Studio)
 
-1. Abre `SwExportAddin\SwExportAddin.csproj` en Visual Studio.
+1. Abre `SwExportAddin\SwExportAddin.csproj`.
 2. Selecciona:
    - **Configuration**: `Release`
    - **Platform**: `x64`
@@ -35,26 +35,41 @@ Los ficheros se guardan en subcarpetas en el mismo directorio que el/los drawing
 4. Salida esperada:
    - `SwExportAddin\bin\x64\Release\SwExportAddin.dll`
 
-### Referencias de SOLIDWORKS
+### Referencias de SOLIDWORKS (portables)
 
-El proyecto usa interop desde rutas tipo:
+El proyecto ya no depende de un `HintPath` absoluto fijo. Usa esta prioridad para resolver interop:
 
-- `C:\Program Files\SOLIDWORKS Corp\SOLIDWORKS\api\redist\SolidWorks.Interop.sldworks.dll`
-- `C:\Program Files\SOLIDWORKS Corp\SOLIDWORKS\api\redist\SolidWorks.Interop.swconst.dll`
-- `C:\Program Files\SOLIDWORKS Corp\SOLIDWORKS\api\redist\SolidWorks.Interop.swpublished.dll`
+1. Variable de entorno `SOLIDWORKS_API_REDIST`
+2. `$(ProgramFiles)\SOLIDWORKS Corp\SOLIDWORKS\api\redist`
+3. `$(ProgramW6432)\SOLIDWORKS Corp\SOLIDWORKS\api\redist`
 
-Si SOLIDWORKS está instalado en otra ruta/versión, ajusta los `HintPath` en `SwExportAddin.csproj`.
+Si necesitas forzar ruta en una máquina concreta, define:
+
+```powershell
+$env:SOLIDWORKS_API_REDIST = "C:\Ruta\a\SOLIDWORKS\api\redist"
+```
+
+## Arquitectura actual del proyecto
+
+- `SwAddin.cs`: integración COM/registro de comandos SOLIDWORKS.
+- `ExportService.cs`: orquestador de exportaciones.
+- `BatchExportHandler.cs`: flujo de exportación del documento activo.
+- `FolderExportHandler.cs`: flujo de exportación por carpeta.
+- `SelectExportHandler.cs`: flujo de exportación por selección manual.
+- `ExportFileProcessor.cs`: lógica común de exportación por archivo.
+- `ExportDialogService.cs`: diálogo de selección PDF/DWG.
+- `ExportOptionsDialog.cs`: formulario WinForms del diálogo.
+- `Logger.cs`: escritura de logs.
+- `IconManager.cs`: gestión y renderizado de iconos embebidos.
 
 ## Registro COM
 
-El add-in debe registrarse para que SOLIDWORKS pueda cargarlo.
+### Opción A: desde Visual Studio
 
-### Opción A: registro desde Visual Studio
-
-- El proyecto ya tiene `RegisterForComInterop` habilitado para `x64`.
+- `RegisterForComInterop` está habilitado en `x64`.
 - Ejecuta Visual Studio como **Administrador** y compila en `Release|x64`.
 
-### Opción B: registro manual (RegAsm)
+### Opción B: manual (RegAsm)
 
 Ejecuta como **Administrador**:
 
@@ -68,16 +83,17 @@ Para desregistrar:
 "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\RegAsm.exe" "C:\ruta\SwExportAddin.dll" /unregister
 ```
 
+## Logs
+
+Se guardan en:
+
+`%LOCALAPPDATA%\SwExportAddin\SwExportAddin.log`
+
 ## Instalación (usuario final)
 
 1. Cierra SOLIDWORKS.
 2. Ejecuta `SwExportAddin_Setup.exe` como **Administrador**.
 3. Abre SOLIDWORKS.
 4. Ve a **Tools > Add-ins**.
-5. Activa **SwExportAddin** (Active Add-ins y opcionalmente Start Up).
-6. Abre un drawing (`.slddrw`) y verifica la pestaña **Export Tools**.
-
-## Uso
-
-- **Exportar Plano** y **Exportar Carpeta** requieren drawing activo con ruta disponible.
-- **Exportar Seleccionables** permite elegir archivos sin depender del documento activo.
+5. Activa **SwExportAddin**.
+6. Abre un `.slddrw` o `.sldprt` y verifica la pestaña **Export Tools**.
