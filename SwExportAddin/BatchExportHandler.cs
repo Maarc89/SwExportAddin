@@ -34,21 +34,27 @@ namespace SwExportAddin
                 return;
             }
 
+            string sourcePath = model.GetPathName();
+            if (string.IsNullOrWhiteSpace(sourcePath))
+            {
+                MessageBox.Show("Guarda primero el documento antes de exportarlo.");
+                return;
+            }
+
             if (!dialogService.AskExportFormats("Exportar Plano/Pieza", out bool exportPdf, out bool exportDwg))
             {
                 return;
             }
 
-            string sourcePath = model.GetPathName();
-            if (string.IsNullOrWhiteSpace(sourcePath))
+            var result = ExportProcessHelper.ProcessFileWithConflictPrompt(null, fileProcessor, sourcePath, exportPdf, exportDwg);
+            if (result == FileProcessResult.Cancelled)
             {
-                MessageBox.Show("Guarda primero el documento para poder exportarlo en su misma carpeta.");
                 return;
             }
 
-            if (!fileProcessor.ExportSolidWorksFile(sourcePath, exportPdf, exportDwg, out string failureReason))
+            if (result == FileProcessResult.Failed)
             {
-                MessageBox.Show($"La exportación falló. {failureReason}");
+                MessageBox.Show("La exportación falló.");
                 return;
             }
 

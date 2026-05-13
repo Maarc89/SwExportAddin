@@ -1,3 +1,4 @@
+using System;
 using System.Windows.Forms;
 
 namespace SwExportAddin
@@ -6,6 +7,7 @@ namespace SwExportAddin
     {
         private readonly CheckBox chkPdf;
         private readonly CheckBox chkDwg;
+        private readonly Button btnOk;
 
         public bool ExportPdf => chkPdf.Checked;
         public bool ExportDwg => chkDwg.Checked;
@@ -38,6 +40,7 @@ namespace SwExportAddin
                 Left = 25,
                 Top = 60
             };
+            chkPdf.CheckedChanged += UpdateOkButtonState;
 
             chkDwg = new CheckBox
             {
@@ -47,15 +50,17 @@ namespace SwExportAddin
                 Left = 25,
                 Top = 100
             };
+            chkDwg.CheckedChanged += UpdateOkButtonState;
 
-            var btnOk = new Button
+            btnOk = new Button
             {
                 Text = "Aceptar",
                 DialogResult = DialogResult.OK,
                 Left = 80,
                 Top = 150,
                 Width = 100,
-                Height = 35
+                Height = 35,
+                Enabled = true
             };
 
             var btnCancel = new Button
@@ -76,6 +81,13 @@ namespace SwExportAddin
             Controls.Add(chkDwg);
             Controls.Add(btnOk);
             Controls.Add(btnCancel);
+
+            UpdateOkButtonState(this, EventArgs.Empty);
+        }
+
+        private void UpdateOkButtonState(object sender, EventArgs e)
+        {
+            btnOk.Enabled = chkPdf.Checked || chkDwg.Checked;
         }
     }
 }

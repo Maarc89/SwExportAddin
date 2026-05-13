@@ -18,6 +18,11 @@ namespace SwExportAddin
 
         public bool ExportSolidWorksFile(string path, bool exportPdf, bool exportDwg, out string failureReason)
         {
+            return ExportSolidWorksFile(path, exportPdf, exportDwg, Path.GetFileNameWithoutExtension(path), out failureReason);
+        }
+
+        public bool ExportSolidWorksFile(string path, bool exportPdf, bool exportDwg, string outputBaseName, out string failureReason)
+        {
             int errors = 0;
             int warnings = 0;
             failureReason = null;
@@ -25,7 +30,7 @@ namespace SwExportAddin
             if (Path.GetFileName(path).StartsWith("~$", StringComparison.OrdinalIgnoreCase))
             {
                 failureReason = "archivo temporal (~$)";
-                logger.Log($"ExportSolidWorksFile: Skipped temporary file {path}");
+                logger.Debug($"ExportSolidWorksFile: Skipped temporary file {path}");
                 return false;
             }
 
@@ -42,7 +47,7 @@ namespace SwExportAddin
             else
             {
                 failureReason = "extensión no soportada";
-                logger.Log($"ExportSolidWorksFile: Unsupported extension {path}");
+                logger.Warning($"ExportSolidWorksFile: Unsupported extension {path}");
                 return false;
             }
 
@@ -50,7 +55,7 @@ namespace SwExportAddin
             if (doc == null)
             {
                 failureReason = $"no se pudo abrir (Errors={errors}, Warnings={warnings})";
-                logger.Log($"ExportSolidWorksFile: Failed to open {path}. Errors={errors}, Warnings={warnings}");
+                logger.Error($"ExportSolidWorksFile: Failed to open {path}. Errors={errors}, Warnings={warnings}");
                 return false;
             }
 
@@ -58,7 +63,7 @@ namespace SwExportAddin
             if (model == null)
             {
                 failureReason = "no se pudo cargar como IModelDoc2";
-                logger.Log($"ExportSolidWorksFile: Failed to cast to IModelDoc2: {path}");
+                logger.Error($"ExportSolidWorksFile: Failed to cast to IModelDoc2: {path}");
                 return false;
             }
 
@@ -68,45 +73,27 @@ namespace SwExportAddin
             Directory.CreateDirectory(pdfFolder);
             Directory.CreateDirectory(dwgFolder);
 
-            string name = Path.GetFileNameWithoutExtension(path);
-            bool hasDrawingTwin = File.Exists(Path.Combine(folder, name + ".slddrw"));
-            bool hasPartTwin = File.Exists(Path.Combine(folder, name + ".sldprt"));
-            string outputName = (hasDrawingTwin && hasPartTwin)
-                ? (name + (ext == ".slddrw" ? "_DRW" : "_PRT"))
-                : name;
-
             bool pdfOk = true;
             bool dwgOk = true;
             string dwgFailureReason = null;
 
             if (exportPdf)
             {
-                string pdf = Path.Combine(pdfFolder, outputName + ".pdf");
+                string pdf = Path.Combine(pdfFolder, outputBaseName + ".pdf");
                 pdfOk = model.Extension.SaveAs(pdf, (int)swSaveAsVersion_e.swSaveAsCurrentVersion, (int)swSaveAsOptions_e.swSaveAsOptions_Silent, null, ref errors, ref warnings);
                 if (!pdfOk)
                 {
-                    logger.Log($"ExportSolidWorksFile: PDF export failed for {path}. Errors={errors}, Warnings={warnings}");
+                    logger.Warning($"ExportSolidWorksFile: PDF export failed for {path}. Errors={errors}, Warnings={warnings}");
                 }
             }
 
             if (exportDwg)
             {
-                string dwg = Path.Combine(dwgFolder, outputName + ".dwg");
-                if (ext == ".sldprt")
+                string dwg = Path.Combine(dwgFolder, outputBaseName + ".dwg");
+                dwgOk = model.Extension.SaveAs(dwg, (int)swSaveAsVersion_e.swSaveAsCurrentVersion, (int)swSaveAsOptions_e.swSaveAsOptions_Silent, null, ref errors, ref warnings);
+                if (!dwgOk)
                 {
-                    dwgOk = ExportPartToDwg(model, path, dwg, out dwgFailureReason);
-                    if (!dwgOk)
-                    {
-                        logger.Log($"ExportSolidWorksFile: DWG export failed for part {path}. {dwgFailureReason}");
-                    }
-                }
-                else
-                {
-                    dwgOk = model.Extension.SaveAs(dwg, (int)swSaveAsVersion_e.swSaveAsCurrentVersion, (int)swSaveAsOptions_e.swSaveAsOptions_Silent, null, ref errors, ref warnings);
-                    if (!dwgOk)
-                    {
-                        logger.Log($"ExportSolidWorksFile: DWG export failed for {path}. Errors={errors}, Warnings={warnings}");
-                    }
+                    logger.Warning($"ExportSolidWorksFile: DWG export failed for {path}. Errors={errors}, Warnings={warnings}");
                 }
             }
 
@@ -143,6 +130,84 @@ namespace SwExportAddin
             }
 
             return true;
+        }
+
+        public bool NeedConflictPrompt(string path, bool exportPdf, bool exportDwg)
+        {
+            string folder = Path.GetDirectoryName(path);
+            string baseName = Path.GetFileNameWithoutExtension(path);
+            return (exportPdf && File.Exists(Path.Combine(folder, baseName + ".pdf")))
+                || (exportDwg && File.Exists(Path.Combine(folder, baseName + ".dwg")));
+        }
+
+        public bool ExportPdf(string path, string outputPath, out string failureReason)
+        {
+            failureReason = null;
+            int errors = 0;
+            int warnings = 0;
+
+            var doc = swApp.OpenDoc6(path, (int)swDocumentTypes_e.swDocDRAWING, 0, "", ref errors, ref warnings);
+            if (doc == null)
+            {
+                failureReason = $"no se pudo abrir para exportar PDF (Errors={errors}, Warnings={warnings})";
+                return false;
+            }
+
+            var model = doc as IModelDoc2;
+            if (model == null)
+            {
+                failureReason = "no se pudo cargar como IModelDoc2";
+                return false;
+            }
+
+            bool ok = model.Extension.SaveAs(outputPath, (int)swSaveAsVersion_e.swSaveAsCurrentVersion, (int)swSaveAsOptions_e.swSaveAsOptions_Silent, null, ref errors, ref warnings);
+            if (!ok)
+            {
+                failureReason = $"falló PDF (Errors={errors}, Warnings={warnings})";
+            }
+
+            try { swApp.CloseDoc(model.GetTitle()); } catch { }
+            return ok;
+        }
+
+        public bool ExportDwg(string path, string outputPath, out string failureReason)
+        {
+            failureReason = null;
+            int errors = 0;
+            int warnings = 0;
+
+            string ext = Path.GetExtension(path)?.ToLowerInvariant();
+            int docType = ext == ".slddrw" ? (int)swDocumentTypes_e.swDocDRAWING : (int)swDocumentTypes_e.swDocPART;
+            var doc = swApp.OpenDoc6(path, docType, 0, "", ref errors, ref warnings);
+            if (doc == null)
+            {
+                failureReason = $"no se pudo abrir para exportar DWG (Errors={errors}, Warnings={warnings})";
+                return false;
+            }
+
+            var model = doc as IModelDoc2;
+            if (model == null)
+            {
+                failureReason = "no se pudo cargar como IModelDoc2";
+                return false;
+            }
+
+            bool ok;
+            if (ext == ".sldprt")
+            {
+                ok = ExportPartToDwg(model, path, outputPath, out failureReason);
+            }
+            else
+            {
+                ok = model.Extension.SaveAs(outputPath, (int)swSaveAsVersion_e.swSaveAsCurrentVersion, (int)swSaveAsOptions_e.swSaveAsOptions_Silent, null, ref errors, ref warnings);
+                if (!ok)
+                {
+                    failureReason = $"falló DWG (Errors={errors}, Warnings={warnings})";
+                }
+            }
+
+            try { swApp.CloseDoc(model.GetTitle()); } catch { }
+            return ok;
         }
 
         private bool ExportPartToDwg(IModelDoc2 model, string sourcePath, string outputPath, out string failureReason)
@@ -183,7 +248,7 @@ namespace SwExportAddin
             catch (Exception ex)
             {
                 failureReason = "error en flujo DWG de pieza: " + ex.Message;
-                logger.Log($"ExportPartToDwg exception for {sourcePath}: {ex}");
+                logger.Error(ex, $"ExportPartToDwg exception for {sourcePath}");
                 return false;
             }
         }

@@ -28,9 +28,12 @@ CloseApplications=yes
 RestartApplications=yes
 
 [Files]
-Source: "SwExportAddin\bin\x64\Release\SwExportAddin.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "SwExportAddin\bin\x64\Release\*.dll"; DestDir: "{app}"; Flags: ignoreversion
 
 [UninstallDelete]
+Type: files; Name: "{app}\*.dll"
+Type: files; Name: "{app}\*.pdb"
+Type: files; Name: "{app}\*.tlb"
 Type: dirifempty; Name: "{app}"
 
 [Registry]

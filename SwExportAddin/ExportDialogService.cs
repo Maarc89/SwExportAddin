@@ -17,13 +17,6 @@ namespace SwExportAddin
 
                 exportPdf = dlg.ExportPdf;
                 exportDwg = dlg.ExportDwg;
-
-                if (!exportPdf && !exportDwg)
-                {
-                    MessageBox.Show("Selecciona al menos PDF o DWG.");
-                    return false;
-                }
-
                 return true;
             }
         }

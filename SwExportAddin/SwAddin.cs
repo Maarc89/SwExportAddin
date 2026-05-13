@@ -14,7 +14,7 @@ namespace SwExportAddin
         private const int CommandGroupId = 1;
         private const string CommandGroupTitle = "Exportación";
 
-        private readonly Logger logger = new Logger();
+        private readonly Logger logger = Logger.Current;
         private readonly ExportDialogService dialogService = new ExportDialogService();
 
         private ISldWorks swApp;
@@ -31,13 +31,13 @@ namespace SwExportAddin
                 swApp = (ISldWorks)ThisSW;
                 addinID = Cookie;
                 exportService = new ExportService(swApp, dialogService, logger);
-                logger.Log("ConnectToSW started.");
+                logger.Information("ConnectToSW started.");
 
                 swApp.SetAddinCallbackInfo2(0, this, addinID);
                 cmdMgr = swApp.GetCommandManager(addinID);
                 if (cmdMgr == null)
                 {
-                    logger.Log("GetCommandManager returned null.");
+                    logger.Warning("GetCommandManager returned null.");
                     return true;
                 }
 
@@ -47,35 +47,35 @@ namespace SwExportAddin
                 try
                 {
                     AddCommand();
-                    logger.Log("AddCommand completed.");
+                    logger.Information("AddCommand completed.");
                 }
                 catch (Exception ex)
                 {
-                    logger.Log("AddCommand failed: " + ex);
+                    logger.Error(ex, "AddCommand failed");
                 }
 
                 try
                 {
                     AddDrawingCommandTab();
-                    logger.Log("AddDrawingCommandTab completed.");
+                    logger.Information("AddDrawingCommandTab completed.");
                 }
                 catch (Exception ex)
                 {
-                    logger.Log("AddDrawingCommandTab failed: " + ex);
+                    logger.Error(ex, "AddDrawingCommandTab failed");
                 }
 
                 return true;
             }
             catch (Exception ex)
             {
-                logger.Log("ConnectToSW failed: " + ex);
+                logger.Error(ex, "ConnectToSW failed");
                 return true;
             }
         }
 
         public bool DisconnectFromSW()
         {
-            logger.Log("DisconnectFromSW called.");
+            logger.Information("DisconnectFromSW called.");
 
             try
             {
@@ -172,11 +172,11 @@ namespace SwExportAddin
         {
             try
             {
-                logger.Log("AddDrawingCommandTab starting...");
+                logger.Debug("AddDrawingCommandTab starting...");
 
                 if (cmdGroup == null)
                 {
-                    logger.Log("AddDrawingCommandTab aborted because cmdGroup is null.");
+                    logger.Warning("AddDrawingCommandTab aborted because cmdGroup is null.");
                     return;
                 }
 
@@ -191,21 +191,21 @@ namespace SwExportAddin
                     }
                     catch (Exception ex)
                     {
-                        logger.Log("RemoveCommandTab failed: " + ex.Message);
+                        logger.Warning("RemoveCommandTab failed: " + ex.Message);
                     }
                 }
 
                 cmdTab = cmdMgr.AddCommandTab(drawingType, CommandGroupTitle);
                 if (cmdTab == null)
                 {
-                    logger.Log("AddCommandTab returned null!");
+                    logger.Warning("AddCommandTab returned null!");
                     return;
                 }
 
                 var cmdTabBox = cmdTab.AddCommandTabBox();
                 if (cmdTabBox == null)
                 {
-                    logger.Log("AddCommandTabBox returned null!");
+                    logger.Warning("AddCommandTabBox returned null!");
                     return;
                 }
 
@@ -213,7 +213,7 @@ namespace SwExportAddin
                 int cmdID1 = cmdGroup.get_CommandID(1);
                 int cmdID2 = cmdGroup.get_CommandID(2);
 
-                logger.Log($"Command IDs: {cmdID0}, {cmdID1}, {cmdID2}");
+                logger.Debug($"Command IDs: {cmdID0}, {cmdID1}, {cmdID2}");
 
                 int[] cmdIDs = { cmdID0, cmdID1, cmdID2 };
                 int[] textTypes =
@@ -224,11 +224,11 @@ namespace SwExportAddin
                 };
 
                 cmdTabBox.AddCommands(cmdIDs, textTypes);
-                logger.Log("Commands added to tab box successfully.");
+                logger.Information("Commands added to tab box successfully.");
             }
             catch (Exception ex)
             {
-                logger.Log($"AddDrawingCommandTab exception: {ex}");
+                logger.Error(ex, "AddDrawingCommandTab exception");
             }
         }
 
@@ -256,7 +256,7 @@ namespace SwExportAddin
                     }
 
                     cmdMgr.RemoveCommandTab(existingTab);
-                    logger.Log("Removed legacy Export Tools tab.");
+                    logger.Debug("Removed legacy Export Tools tab.");
                 }
             }
             catch (Exception ex)
@@ -279,7 +279,7 @@ namespace SwExportAddin
             }
             catch (Exception ex)
             {
-                logger.Log("RemoveCommandGroup failed: " + ex.Message);
+                logger.Warning("RemoveCommandGroup failed: " + ex.Message);
             }
         }
 

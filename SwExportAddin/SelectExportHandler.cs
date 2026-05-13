@@ -41,7 +41,7 @@ namespace SwExportAddin
             using (var dlg = new OpenFileDialog())
             {
                 dlg.Multiselect = true;
-                dlg.Filter = "SolidWorks Drawing/Part (*.slddrw;*.sldprt)|*.slddrw;*.sldprt|SolidWorks Drawing (*.slddrw)|*.slddrw|SolidWorks Part (*.sldprt)|*.sldprt|All files (*.*)|*.*";
+                dlg.Filter = "SolidWorks Drawing (*.slddrw)|*.slddrw|All files (*.*)|*.*";
                 if (!string.IsNullOrWhiteSpace(initialDir)) dlg.InitialDirectory = initialDir;
 
                 var dr = dlg.ShowDialog();
@@ -53,33 +53,63 @@ namespace SwExportAddin
 
                 if (selectedFiles.Length == 0)
                 {
-                    MessageBox.Show("No se seleccionaron archivos válidos (.slddrw/.sldprt).", "Exportar Seleccionables");
+                    MessageBox.Show("No se seleccionaron archivos válidos (.slddrw).", "Exportar Seleccionables");
                     return;
                 }
 
                 int success = 0;
                 int failed = 0;
                 var failedDetails = new List<string>();
-                foreach (var f in selectedFiles)
-                {
-                    if (fileProcessor.ExportSolidWorksFile(f, exportPdf, exportDwg, out string failureReason))
-                    {
-                        success++;
-                    }
-                    else
-                    {
-                        failed++;
-                        failedDetails.Add($"- {Path.GetFileName(f)}: {failureReason}");
-                    }
-                }
 
-                var summary = $"Exportación completada. Completados: {success}, Fallidos: {failed}";
-                if (failedDetails.Count > 0)
+                using (var progress = new ExportProgressDialog("Exportación", selectedFiles.Length))
                 {
-                    summary += "\n\nDetalle de fallidos:\n" + string.Join("\n", failedDetails);
-                }
+                    progress.Show();
+                    progress.Activate();
+                    for (int i = 0; i < selectedFiles.Length; i++)
+                    {
+                        if (progress.CancelRequested)
+                        {
+                            break;
+                        }
 
-                MessageBox.Show(summary);
+                        var file = selectedFiles[i];
+                        progress.UpdateProgress(i, selectedFiles.Length, Path.GetFileName(file));
+
+                        var result = ExportProcessHelper.ProcessFileWithConflictPrompt(progress, fileProcessor, file, exportPdf, exportDwg);
+                        if (result == FileProcessResult.Success)
+                        {
+                            success++;
+                        }
+                        else if (result == FileProcessResult.Failed)
+                        {
+                            failed++;
+                            failedDetails.Add($"- {Path.GetFileName(file)}: fallo en exportación");
+                        }
+                        else if (result == FileProcessResult.Skipped)
+                        {
+                            failedDetails.Add($"- {Path.GetFileName(file)}: omitido");
+                        }
+                        else if (result == FileProcessResult.Cancelled)
+                        {
+                            break;
+                        }
+
+                        progress.UpdateProgress(i + 1, selectedFiles.Length, Path.GetFileName(file));
+                        progress.Activate();
+                    }
+
+                    var summary = progress.CancelRequested
+                        ? $"Exportación cancelada. Completados: {success}, Fallidos: {failed}"
+                        : $"Exportación completada. Completados: {success}, Fallidos: {failed}";
+
+                    if (failedDetails.Count > 0)
+                    {
+                        summary += "\n\nDetalle de fallidos:\n" + string.Join("\n", failedDetails);
+                    }
+
+                    progress.Finish(summary);
+                    MessageBox.Show(summary);
+                }
             }
         }
     }

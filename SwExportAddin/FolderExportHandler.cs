@@ -7,6 +7,14 @@ using SolidWorks.Interop.sldworks;
 
 namespace SwExportAddin
 {
+    internal enum FileProcessResult
+    {
+        Success,
+        Failed,
+        Skipped,
+        Cancelled
+    }
+
     internal sealed class FolderExportHandler
     {
         private readonly ISldWorks swApp;
@@ -29,26 +37,26 @@ namespace SwExportAddin
                 return;
             }
 
+            string sourcePath = model.GetPathName();
+            if (string.IsNullOrWhiteSpace(sourcePath))
+            {
+                MessageBox.Show("Guarda primero el documento para poder localizar la carpeta.");
+                return;
+            }
+
             if (!dialogService.AskExportFormats("Exportar Carpeta Completa", out bool exportPdf, out bool exportDwg))
             {
                 return;
             }
 
             var warningResult = MessageBox.Show(
-                "Si la carpeta contiene muchos planos/piezas, el proceso puede tardar y SOLIDWORKS no podrá usarse mientras se exporta.\n\n¿Deseas continuar?",
+                "Si la carpeta contiene muchos planos, el proceso puede tardar y SOLIDWORKS no podrá usarse mientras se exporta.\n\n¿Deseas continuar?",
                 "Aviso de exportación",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Warning
             );
             if (warningResult != DialogResult.Yes)
             {
-                return;
-            }
-
-            string sourcePath = model.GetPathName();
-            if (string.IsNullOrWhiteSpace(sourcePath))
-            {
-                MessageBox.Show("Guarda primero el documento para poder localizar la carpeta.");
                 return;
             }
 
@@ -60,12 +68,11 @@ namespace SwExportAddin
             }
 
             var files = Directory.GetFiles(drawingFolder, "*.slddrw")
-                .Concat(Directory.GetFiles(drawingFolder, "*.sldprt"))
                 .Where(f => !Path.GetFileName(f).StartsWith("~$", StringComparison.OrdinalIgnoreCase))
                 .ToArray();
             if (files.Length == 0)
             {
-                MessageBox.Show("No se encontraron archivos .slddrw o .sldprt válidos en la carpeta.");
+                MessageBox.Show("No se encontraron archivos .slddrw válidos en la carpeta.");
                 return;
             }
 
@@ -73,26 +80,55 @@ namespace SwExportAddin
             int failed = 0;
             var failedDetails = new List<string>();
 
-            foreach (var f in files)
+            using (var progress = new ExportProgressDialog("Exportación", files.Length))
             {
-                if (fileProcessor.ExportSolidWorksFile(f, exportPdf, exportDwg, out string failureReason))
+                progress.Show();
+                progress.Activate();
+                for (int i = 0; i < files.Length; i++)
                 {
-                    success++;
+                    if (progress.CancelRequested)
+                    {
+                        break;
+                    }
+
+                    var file = files[i];
+                    progress.UpdateProgress(i, files.Length, Path.GetFileName(file));
+
+                    var result = ExportProcessHelper.ProcessFileWithConflictPrompt(progress, fileProcessor, file, exportPdf, exportDwg);
+                    if (result == FileProcessResult.Success)
+                    {
+                        success++;
+                    }
+                    else if (result == FileProcessResult.Failed)
+                    {
+                        failed++;
+                        failedDetails.Add($"- {Path.GetFileName(file)}: fallo en exportación");
+                    }
+                    else if (result == FileProcessResult.Skipped)
+                    {
+                        failedDetails.Add($"- {Path.GetFileName(file)}: omitido");
+                    }
+                    else if (result == FileProcessResult.Cancelled)
+                    {
+                        break;
+                    }
+
+                    progress.UpdateProgress(i + 1, files.Length, Path.GetFileName(file));
+                    progress.Activate();
                 }
-                else
+
+                var summary = progress.CancelRequested
+                    ? $"Exportación cancelada. Completados: {success}, Fallidos: {failed}"
+                    : $"Exportación completada. Completados: {success}, Fallidos: {failed}";
+
+                if (failedDetails.Count > 0)
                 {
-                    failed++;
-                    failedDetails.Add($"- {Path.GetFileName(f)}: {failureReason}");
+                    summary += "\n\nDetalle de fallidos:\n" + string.Join("\n", failedDetails);
                 }
-            }
 
-            var summary = $"Exportación completada. Completados: {success}, Fallidos: {failed}";
-            if (failedDetails.Count > 0)
-            {
-                summary += "\n\nDetalle de fallidos:\n" + string.Join("\n", failedDetails);
+                progress.Finish(summary);
+                MessageBox.Show(summary);
             }
-
-            MessageBox.Show(summary);
         }
     }
 }

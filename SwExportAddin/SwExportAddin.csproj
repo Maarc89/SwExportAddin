@@ -88,12 +88,24 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Serilog" Version="4.3.1" />
+    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+    <PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="ExportProgressDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="SwAddin.cs" />
     <Compile Include="ExportService.cs" />
     <Compile Include="BatchExportHandler.cs" />
     <Compile Include="FolderExportHandler.cs" />
     <Compile Include="SelectExportHandler.cs" />
     <Compile Include="ExportFileProcessor.cs" />
+    <Compile Include="ExportProcessHelper.cs" />
+    <Compile Include="ExistingFileConflictDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="ExportDialogService.cs" />
     <Compile Include="Logger.cs" />
     <Compile Include="IconManager.cs" />
@@ -108,5 +120,3 @@
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
-
-

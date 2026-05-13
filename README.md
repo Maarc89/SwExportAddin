@@ -87,7 +87,13 @@ Para desregistrar:
 
 Se guardan en:
 
-`%LOCALAPPDATA%\SwExportAddin\SwExportAddin.log`
+`%LOCALAPPDATA%\SwExportAddin\Logs\SwExportAddin-.log`
+
+El logging usa Serilog con niveles (`Information`, `Warning`, `Error`, `Debug`), rotación diaria y salida adicional a la ventana de depuración en desarrollo.
+
+## Instalación
+
+El instalador copia `SwExportAddin.dll` y las DLL dependientes necesarias de Serilog junto al add-in para que SOLIDWORKS pueda cargarlo correctamente en otro equipo.
 
 ## Instalación (usuario final)
 
