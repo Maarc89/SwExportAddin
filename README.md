@@ -1,17 +1,17 @@
 # SwExportAddin
 
-Add-in de SOLIDWORKS para exportar archivos `.slddrw` y `.sldprt` a **PDF** y **DWG**.
+Add-in de SOLIDWORKS para exportar archivos `.slddrw` a **PDF** y **DWG**.
 
 ## ¿Qué hace?
 
 Añade una pestaña **Export Tools** con 3 comandos:
 
 1. **Exportar Plano**
-   - Exporta el documento activo (`.slddrw` o `.sldprt`) a PDF/DWG.
+   - Exporta el documento activo (`.slddrw`) a PDF/DWG.
 2. **Exportar Carpeta Completa**
-   - Exporta los `.slddrw` y `.sldprt` de la carpeta del documento activo.
+   - Exporta los `.slddrw` de la carpeta del documento activo.
 3. **Exportar Seleccionables**
-   - Permite seleccionar uno o varios `.slddrw`/`.sldprt` para exportar.
+   - Permite seleccionar uno o varios `.slddrw` para exportar.
 
 Los ficheros se guardan en subcarpetas en el mismo directorio origen:
 - `PDF`
@@ -96,4 +96,4 @@ Se guardan en:
 3. Abre SOLIDWORKS.
 4. Ve a **Tools > Add-ins**.
 5. Activa **SwExportAddin**.
-6. Abre un `.slddrw` o `.sldprt` y verifica la pestaña **Export Tools**.
+6. Abre un `.slddrw` y verifica la pestaña **Export Tools**.

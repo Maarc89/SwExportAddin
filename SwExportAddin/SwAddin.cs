@@ -12,7 +12,7 @@ namespace SwExportAddin
     public class SwAddin : ISwAddin
     {
         private const int CommandGroupId = 1;
-        private const string CommandGroupTitle = "Export Tools";
+        private const string CommandGroupTitle = "Exportación";
 
         private readonly Logger logger = new Logger();
         private readonly ExportDialogService dialogService = new ExportDialogService();
@@ -38,8 +38,11 @@ namespace SwExportAddin
                 if (cmdMgr == null)
                 {
                     logger.Log("GetCommandManager returned null.");
-                    return false;
+                    return true;
                 }
+
+                CleanupCommandTabs();
+                RemoveCommandGroupIfExists();
 
                 try
                 {
@@ -49,7 +52,6 @@ namespace SwExportAddin
                 catch (Exception ex)
                 {
                     logger.Log("AddCommand failed: " + ex);
-                    return false;
                 }
 
                 try
@@ -60,7 +62,6 @@ namespace SwExportAddin
                 catch (Exception ex)
                 {
                     logger.Log("AddDrawingCommandTab failed: " + ex);
-                    return false;
                 }
 
                 return true;
@@ -68,7 +69,7 @@ namespace SwExportAddin
             catch (Exception ex)
             {
                 logger.Log("ConnectToSW failed: " + ex);
-                return false;
+                return true;
             }
         }
 
@@ -78,14 +79,10 @@ namespace SwExportAddin
 
             try
             {
-                if (cmdGroup != null)
-                {
-                    cmdMgr.RemoveCommandGroup(CommandGroupId);
-                }
+                RemoveCommandGroupIfExists();
             }
-            catch (Exception ex)
+            catch
             {
-                logger.Log("DisconnectFromSW RemoveCommandGroup failed: " + ex.Message);
             }
 
             cmdTab = null;
@@ -103,7 +100,7 @@ namespace SwExportAddin
             cmdGroup = cmdMgr.CreateCommandGroup2(
                 CommandGroupId,
                 CommandGroupTitle,
-                "Export PDF/DWG",
+                "Export PDF/DWG for drawings",
                 "",
                 -1,
                 false,
@@ -133,7 +130,7 @@ namespace SwExportAddin
             cmdGroup.AddCommandItem2(
                 "Exportar Plano",
                 -1,
-                "Exporta el documento activo (.slddrw/.sldprt) a PDF y DWG",
+                "Exporta el documento activo (.slddrw) a PDF y DWG",
                 "Exportar Plano",
                 0,
                 nameof(RunBatchExport),
@@ -145,7 +142,7 @@ namespace SwExportAddin
             cmdGroup.AddCommandItem2(
                 "Exportar Carpeta Completa",
                 -1,
-                "Exporta los archivos .slddrw y .sldprt de la carpeta del documento activo a PDF y DWG",
+                "Exporta los archivos .slddrw de la carpeta del documento activo a PDF y DWG",
                 "Exportar Carpeta Completa",
                 0,
                 nameof(RunExportFolder),
@@ -157,7 +154,7 @@ namespace SwExportAddin
             cmdGroup.AddCommandItem2(
                 "Exportar Seleccionables",
                 -1,
-                "Selecciona ficheros .slddrw/.sldprt para exportar a PDF y DWG",
+                "Selecciona ficheros .slddrw para exportar a PDF y DWG",
                 "Exportar Seleccionables",
                 0,
                 nameof(RunExportSelect),
@@ -177,27 +174,28 @@ namespace SwExportAddin
             {
                 logger.Log("AddDrawingCommandTab starting...");
 
-                while (true)
+                if (cmdGroup == null)
                 {
-                    var existingTab = cmdMgr.GetCommandTab((int)swDocumentTypes_e.swDocDRAWING, CommandGroupTitle);
-                    if (existingTab == null)
-                    {
-                        break;
-                    }
+                    logger.Log("AddDrawingCommandTab aborted because cmdGroup is null.");
+                    return;
+                }
 
+                var drawingType = (int)swDocumentTypes_e.swDocDRAWING;
+                var existingTab = cmdMgr.GetCommandTab(drawingType, CommandGroupTitle);
+                if (existingTab != null)
+                {
                     try
                     {
                         cmdMgr.RemoveCommandTab(existingTab);
-                        logger.Log("Removed duplicated command tab.");
+                        logger.Log("Removed existing command tab with the same title.");
                     }
                     catch (Exception ex)
                     {
                         logger.Log("RemoveCommandTab failed: " + ex.Message);
-                        break;
                     }
                 }
 
-                cmdTab = cmdMgr.AddCommandTab((int)swDocumentTypes_e.swDocDRAWING, CommandGroupTitle);
+                cmdTab = cmdMgr.AddCommandTab(drawingType, CommandGroupTitle);
                 if (cmdTab == null)
                 {
                     logger.Log("AddCommandTab returned null!");
@@ -240,6 +238,51 @@ namespace SwExportAddin
 
         public void RunExportSelect() => exportService?.RunExportSelect();
 
+        private void CleanupCommandTabs()
+        {
+            if (cmdMgr == null)
+            {
+                return;
+            }
+
+            try
+            {
+                while (true)
+                {
+                    var existingTab = cmdMgr.GetCommandTab((int)swDocumentTypes_e.swDocDRAWING, "Export Tools");
+                    if (existingTab == null)
+                    {
+                        break;
+                    }
+
+                    cmdMgr.RemoveCommandTab(existingTab);
+                    logger.Log("Removed legacy Export Tools tab.");
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.Log("CleanupCommandTabs failed: " + ex.Message);
+            }
+        }
+
+        private void RemoveCommandGroupIfExists()
+        {
+            if (cmdMgr == null)
+            {
+                return;
+            }
+
+            try
+            {
+                cmdMgr.RemoveCommandGroup(CommandGroupId);
+                logger.Log("Removed existing command group.");
+            }
+            catch (Exception ex)
+            {
+                logger.Log("RemoveCommandGroup failed: " + ex.Message);
+            }
+        }
+
         [ComRegisterFunction]
         public static void RegisterFunction(Type t)
         {
@@ -265,7 +308,6 @@ namespace SwExportAddin
             }
             catch (Exception ex)
             {
-                new Logger().Log("RegisterFunction failed: " + ex);
                 System.Diagnostics.Debug.WriteLine("RegisterFunction failed: " + ex.Message);
             }
         }
@@ -280,9 +322,8 @@ namespace SwExportAddin
                 {
                     hklm.DeleteSubKeyTree($@"SOFTWARE\SolidWorks\Addins\{{{t.GUID}}}");
                 }
-                catch (Exception ex)
+                catch
                 {
-                    new Logger().Log("UnregisterFunction HKLM cleanup failed: " + ex.Message);
                 }
 
                 RegistryKey hkcu = Registry.CurrentUser;
@@ -290,23 +331,20 @@ namespace SwExportAddin
                 {
                     hkcu.DeleteSubKeyTree($@"Software\SolidWorks\Addins\{{{t.GUID}}}");
                 }
-                catch (Exception ex)
+                catch
                 {
-                    new Logger().Log("UnregisterFunction HKCU Addins cleanup failed: " + ex.Message);
                 }
 
                 try
                 {
                     hkcu.DeleteSubKeyTree($@"Software\SolidWorks\AddInsStartup\{{{t.GUID}}}");
                 }
-                catch (Exception ex)
+                catch
                 {
-                    new Logger().Log("UnregisterFunction HKCU AddInsStartup cleanup failed: " + ex.Message);
                 }
             }
             catch (Exception ex)
             {
-                new Logger().Log("UnregisterFunction failed: " + ex);
                 System.Diagnostics.Debug.WriteLine("UnregisterFunction failed: " + ex.Message);
             }
         }

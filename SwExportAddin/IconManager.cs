@@ -1,4 +1,5 @@
 using System;
+using System.Drawing;
 using System.IO;
 
 namespace SwExportAddin
@@ -19,34 +20,17 @@ namespace SwExportAddin
                     return outputFile;
                 }
 
-                var assembly = typeof(IconManager).Assembly;
-                string resourceName = null;
-                foreach (var name in assembly.GetManifestResourceNames())
+                using (Bitmap source = GetResourceBitmap(resourceFileName))
                 {
-                    if (name.EndsWith(resourceFileName, StringComparison.OrdinalIgnoreCase))
-                    {
-                        resourceName = name;
-                        break;
-                    }
-                }
-
-                if (resourceName == null)
-                {
-                    return null;
-                }
-
-                using (Stream stream = assembly.GetManifestResourceStream(resourceName))
-                {
-                    if (stream == null)
+                    if (source == null)
                     {
                         return null;
                     }
 
-                    using (var source = new System.Drawing.Bitmap(stream))
-                    using (var target = new System.Drawing.Bitmap(size, size))
-                    using (var graphics = System.Drawing.Graphics.FromImage(target))
+                    using (var target = new Bitmap(size, size))
+                    using (var graphics = Graphics.FromImage(target))
                     {
-                        graphics.Clear(System.Drawing.Color.Transparent);
+                        graphics.Clear(Color.Transparent);
                         graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
                         graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
                         graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
@@ -60,6 +44,21 @@ namespace SwExportAddin
             catch
             {
                 return null;
+            }
+        }
+
+        private static Bitmap GetResourceBitmap(string resourceFileName)
+        {
+            switch (Path.GetFileNameWithoutExtension(resourceFileName))
+            {
+                case "ExportPlano":
+                    return Properties.Resources.ExportPlano == null ? null : (Bitmap)Properties.Resources.ExportPlano.Clone();
+                case "ExportCarpeta":
+                    return Properties.Resources.ExportCarpeta == null ? null : (Bitmap)Properties.Resources.ExportCarpeta.Clone();
+                case "ExportSelect":
+                    return Properties.Resources.ExportSelect == null ? null : (Bitmap)Properties.Resources.ExportSelect.Clone();
+                default:
+                    return null;
             }
         }
     }
