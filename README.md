@@ -8,7 +8,7 @@ Añade una pestaña **Export Tools** con 3 comandos:
 
 1. **Exportar Plano**
    - Exporta el documento activo (`.slddrw`) a PDF/DWG.
-2. **Exportar Carpeta Completa**
+2. **Exportar Carpeta**
    - Exporta los `.slddrw` de la carpeta del documento activo.
 3. **Exportar Seleccionables**
    - Permite seleccionar uno o varios `.slddrw` para exportar.
